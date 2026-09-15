@@ -29,7 +29,6 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.hibernate.orm.deployment.component.PersistenceUnitDefinitionBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationRuntimeConfiguredBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationStaticConfiguredBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.DatabaseKindDialectBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientDefinedBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientLookupHandlerBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientRequestBuildItem;
@@ -59,11 +58,6 @@ class MongoDbHibernateProcessor {
     @BuildStep
     void indexMongoDbHibernateDependency(BuildProducer<IndexDependencyBuildItem> index) {
         index.produce(new IndexDependencyBuildItem("org.mongodb", "mongodb-hibernate"));
-    }
-
-    @BuildStep
-    DatabaseKindDialectBuildItem registerDialect() {
-        return DatabaseKindDialectBuildItem.forThirdPartyDialect("mongodb", ClassNames.MONGO_DIALECT);
     }
 
     @BuildStep
