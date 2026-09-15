@@ -32,6 +32,8 @@ jobs:
   build-quarkus:
     name: Build Quarkus
     runs-on: ubuntu-latest
+    outputs:
+      m2-cache-key-month: ${{ steps.cache-key.outputs.m2-cache-key-month }}
     steps:
       - name: Check out Quarkus
         uses: actions/checkout@v4
@@ -49,13 +51,13 @@ jobs:
         id: cache-key
         run: |
           CURRENT_MONTH=$(/bin/date -u "+%Y-%m")
-          echo "m2-cache-key=m2-cache-quarkus-${CURRENT_MONTH}" >> "$GITHUB_OUTPUT"
+          echo "m2-cache-key-month=${CURRENT_MONTH}" >> "$GITHUB_OUTPUT"
 
       - name: Restore Maven repository cache
         uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository
-          key: ${{ steps.cache-key.outputs.m2-cache-key }}
+          key: m2-cache-quarkus-${{ steps.cache-key.outputs.m2-cache-key-month }}
 
       - name: Cache Develocity local build cache
         uses: actions/cache@v4
@@ -92,7 +94,7 @@ jobs:
         if: github.event_name == 'push'
         with:
           path: ~/.m2/repository
-          key: ${{ steps.cache-key.outputs.m2-cache-key }}
+          key: m2-cache-quarkus-${{ steps.cache-key.outputs.m2-cache-key-month }}
 
   jvm-tests:
     name: JVM Tests
@@ -107,6 +109,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+
+      - name: Restore Maven repository cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-cache-quarkus-${{ needs.build-quarkus.outputs.m2-cache-key-month }}
 
       - name: Download Quarkus artifacts
         uses: actions/download-artifact@v4
@@ -146,6 +154,12 @@ jobs:
         with:
           java-version: 21
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Maven repository cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-cache-quarkus-${{ needs.build-quarkus.outputs.m2-cache-key-month }}
 
       - name: Download Quarkus artifacts
         uses: actions/download-artifact@v4
