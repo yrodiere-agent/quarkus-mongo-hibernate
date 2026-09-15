@@ -1,0 +1,128 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - "main"
+    paths-ignore:
+      - '.gitignore'
+      - 'CODEOWNERS'
+      - 'LICENSE'
+      - '*.md'
+      - '*.adoc'
+      - '*.txt'
+  pull_request:
+    paths-ignore:
+      - '.gitignore'
+      - 'CODEOWNERS'
+      - 'LICENSE'
+      - '*.md'
+      - '*.adoc'
+      - '*.txt'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QUARKUS_BRANCH: mongo-hibernate-spi
+  QUARKUS_REPO: yrodiere/quarkus
+
+jobs:
+  build-quarkus:
+    name: Build Quarkus
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Quarkus
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.QUARKUS_REPO }}
+          ref: ${{ env.QUARKUS_BRANCH }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Get date for cache key
+        id: get-date
+        run: echo "date=$(/bin/date -u '+%Y-%m')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: quarkus-maven-${{ runner.os }}-${{ steps.get-date.outputs.date }}
+
+      - name: Build Quarkus
+        run: ./mvnw -B install -Dquickly
+
+      - name: Save Quarkus Maven repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarkus-maven-repo
+          path: ~/.m2/repository
+          retention-days: 1
+
+  jvm-tests:
+    name: JVM Tests
+    needs: build-quarkus
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Download Quarkus Maven repository
+        uses: actions/download-artifact@v4
+        with:
+          name: quarkus-maven-repo
+          path: ~/.m2/repository
+
+      - name: Build and test
+        run: mvn -B verify -Dtest-containers -Dstart-containers
+
+  native-tests:
+    name: Native Tests
+    needs: build-quarkus
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - integration-tests/default-pu
+          - integration-tests/named-pus
+          - integration-tests/quarkus-data
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: 21
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Quarkus Maven repository
+        uses: actions/download-artifact@v4
+        with:
+          name: quarkus-maven-repo
+          path: ~/.m2/repository
+
+      - name: Build extension
+        run: mvn -B install -DskipTests -DskipITs
+
+      - name: Native test - ${{ matrix.module }}
+        run: mvn -B verify -f ${{ matrix.module }} -Dnative -Dtest-containers -Dstart-containers
