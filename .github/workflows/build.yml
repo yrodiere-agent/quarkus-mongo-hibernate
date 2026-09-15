@@ -45,25 +45,54 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Get date for cache key
-        id: get-date
-        run: echo "date=$(/bin/date -u '+%Y-%m')" >> "$GITHUB_OUTPUT"
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          CURRENT_MONTH=$(/bin/date -u "+%Y-%m")
+          echo "m2-cache-key=m2-cache-quarkus-${CURRENT_MONTH}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Maven repository
-        uses: actions/cache@v4
+      - name: Restore Maven repository cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository
-          key: quarkus-maven-${{ runner.os }}-${{ steps.get-date.outputs.date }}
+          key: ${{ steps.cache-key.outputs.m2-cache-key }}
+
+      - name: Cache Develocity local build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/.develocity/build-cache
+          key: develocity-cache-quarkus-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+          restore-keys: |
+            develocity-cache-quarkus-${{ github.event.pull_request.number || github.ref }}-
+            develocity-cache-quarkus-
 
       - name: Build Quarkus
         run: ./mvnw -B install -Dquickly
 
-      - name: Save Quarkus Maven repository
+      - name: Tar Quarkus artifacts for downstream jobs
+        run: |
+          if [ -d ~/.m2/.develocity/build-cache ]; then
+            tar -czf m2-quarkus.tgz -C ~ .m2/repository/io/quarkus .m2/.develocity/build-cache
+          else
+            tar -czf m2-quarkus.tgz -C ~ .m2/repository/io/quarkus
+          fi
+
+      - name: Upload Quarkus artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: quarkus-maven-repo
-          path: ~/.m2/repository
+          name: m2-quarkus
+          path: m2-quarkus.tgz
           retention-days: 1
+
+      - name: Delete snapshots from cache
+        run: find ~/.m2/repository -name '*-SNAPSHOT' -type d -exec rm -rf {} +
+
+      - name: Save Maven repository cache
+        uses: actions/cache/save@v4
+        if: github.event_name == 'push'
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.cache-key.outputs.m2-cache-key }}
 
   jvm-tests:
     name: JVM Tests
@@ -79,11 +108,14 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Download Quarkus Maven repository
+      - name: Download Quarkus artifacts
         uses: actions/download-artifact@v4
         with:
-          name: quarkus-maven-repo
-          path: ~/.m2/repository
+          name: m2-quarkus
+          path: .
+
+      - name: Extract Quarkus artifacts
+        run: tar -xzf m2-quarkus.tgz -C ~
 
       - name: Build and test
         run: mvn -B verify -Dtest-containers -Dstart-containers
@@ -115,11 +147,14 @@ jobs:
           java-version: 21
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download Quarkus Maven repository
+      - name: Download Quarkus artifacts
         uses: actions/download-artifact@v4
         with:
-          name: quarkus-maven-repo
-          path: ~/.m2/repository
+          name: m2-quarkus
+          path: .
+
+      - name: Extract Quarkus artifacts
+        run: tar -xzf m2-quarkus.tgz -C ~
 
       - name: Build extension
         run: mvn -B install -DskipTests -DskipITs
