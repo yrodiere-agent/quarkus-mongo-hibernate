@@ -30,7 +30,7 @@ import io.quarkus.hibernate.orm.deployment.component.PersistenceUnitDefinitionBu
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationRuntimeConfiguredBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationStaticConfiguredBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientDefinedBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientLookupHandlerBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientHandlerBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientRequestBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.component.PersistenceUnitRequestBuildItem;
 import io.quarkus.mongodb.MongoClientName;
@@ -75,9 +75,9 @@ class MongoDbHibernateProcessor {
     // from @MongoClientName annotations in the application index.
     @BuildStep
     void registerClientLookup(CombinedIndexBuildItem indexBuildItem,
-            BuildProducer<HibernateOrmClientLookupHandlerBuildItem> clientLookup) {
+            BuildProducer<HibernateOrmClientHandlerBuildItem> clientLookup) {
         Set<String> knownClientNames = discoverClientNames(indexBuildItem.getIndex());
-        clientLookup.produce(new HibernateOrmClientLookupHandlerBuildItem((name, paradigm) -> {
+        clientLookup.produce(new HibernateOrmClientHandlerBuildItem((name, paradigm) -> {
             if (paradigm == ProgrammingParadigm.REACTIVE) {
                 return List.of(new Reason(
                         "Persistence units using an external client do not support Hibernate Reactive"));
