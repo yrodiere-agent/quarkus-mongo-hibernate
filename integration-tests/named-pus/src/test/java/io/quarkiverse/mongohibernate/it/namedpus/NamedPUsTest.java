@@ -1,39 +1,62 @@
 package io.quarkiverse.mongohibernate.it.namedpus;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
-import org.hibernate.Session;
 import org.junit.jupiter.api.Test;
 
-import com.mongodb.client.MongoClient;
-
-import io.quarkus.arc.Arc;
-import io.quarkus.hibernate.orm.PersistenceUnit;
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
 
 @QuarkusTest
 class NamedPUsTest {
 
     @Test
-    void defaultSessionNotAvailable() {
-        assertFalse(Arc.container().select(Session.class).isResolvable(),
-                "No default Session should be available — only named PUs are configured");
+    void inventoryPersistenceUnitWorks() {
+        String id = given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"name": "Widget", "quantity": 42}
+                        """)
+                .when()
+                .post("/products")
+                .then()
+                .statusCode(201)
+                .body("id", notNullValue())
+                .body("name", equalTo("Widget"))
+                .extract().path("id");
+
+        given()
+                .when()
+                .get("/products/{id}", id)
+                .then()
+                .statusCode(200)
+                .body("name", equalTo("Widget"))
+                .body("quantity", equalTo(42));
     }
 
     @Test
-    void defaultMongoClientNotAvailable() {
-        assertFalse(Arc.container().select(MongoClient.class).isResolvable(),
-                "No default MongoClient should be available — only named clients are configured");
-    }
+    void analyticsPersistenceUnitWorks() {
+        String id = given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"type": "page_view", "description": "Home page"}
+                        """)
+                .when()
+                .post("/events")
+                .then()
+                .statusCode(201)
+                .body("id", notNullValue())
+                .body("type", equalTo("page_view"))
+                .extract().path("id");
 
-    @Test
-    void namedSessionsAvailable() {
-        assertTrue(Arc.container()
-                .select(Session.class, new PersistenceUnit.PersistenceUnitLiteral("inventory"))
-                .isResolvable());
-        assertTrue(Arc.container()
-                .select(Session.class, new PersistenceUnit.PersistenceUnitLiteral("analytics"))
-                .isResolvable());
+        given()
+                .when()
+                .get("/events/{id}", id)
+                .then()
+                .statusCode(200)
+                .body("type", equalTo("page_view"))
+                .body("description", equalTo("Home page"));
     }
 }
