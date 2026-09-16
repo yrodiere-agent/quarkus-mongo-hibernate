@@ -29,9 +29,9 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.hibernate.orm.deployment.component.PersistenceUnitDefinitionBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationRuntimeConfiguredBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationStaticConfiguredBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientDefinedBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientLookupHandlerBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientRequestBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientDefinedBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientLookupHandlerBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientRequestBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.component.PersistenceUnitRequestBuildItem;
 import io.quarkus.mongodb.MongoClientName;
 import io.quarkus.mongodb.deployment.spi.MongoClientBuildItem;
@@ -105,7 +105,8 @@ class MongoDbHibernateProcessor {
             BuildProducer<HibernateOrmClientDefinedBuildItem> definedClients) {
         for (String clientName : discoverClientNames(indexBuildItem.getIndex())) {
             definedClients.produce(new HibernateOrmClientDefinedBuildItem(
-                    clientName, ClassNames.MONGO_DIALECT, CLIENT_PROPERTIES,
+                    clientName, Set.of(ProgrammingParadigm.BLOCKING),
+                    ClassNames.MONGO_DIALECT, CLIENT_PROPERTIES,
                     isMongoDevServicesEnabled(clientName)));
         }
     }
