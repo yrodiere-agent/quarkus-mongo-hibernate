@@ -29,9 +29,9 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.hibernate.orm.deployment.component.PersistenceUnitDefinitionBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationRuntimeConfiguredBuildItem;
 import io.quarkus.hibernate.orm.deployment.integration.HibernateOrmIntegrationStaticConfiguredBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientDefinedBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientLookupHandlerBuildItem;
-import io.quarkus.hibernate.orm.deployment.spi.HibernateOrmClientRequestBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientDefinedBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientHandlerBuildItem;
+import io.quarkus.hibernate.orm.deployment.spi.client.HibernateOrmClientRequestBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.component.PersistenceUnitRequestBuildItem;
 import io.quarkus.mongodb.MongoClientName;
 import io.quarkus.mongodb.deployment.spi.MongoClientBuildItem;
@@ -75,9 +75,9 @@ class MongoDbHibernateProcessor {
     // from @MongoClientName annotations in the application index.
     @BuildStep
     void registerClientLookup(CombinedIndexBuildItem indexBuildItem,
-            BuildProducer<HibernateOrmClientLookupHandlerBuildItem> clientLookup) {
+            BuildProducer<HibernateOrmClientHandlerBuildItem> clientLookup) {
         Set<String> knownClientNames = discoverClientNames(indexBuildItem.getIndex());
-        clientLookup.produce(new HibernateOrmClientLookupHandlerBuildItem((name, paradigm) -> {
+        clientLookup.produce(new HibernateOrmClientHandlerBuildItem((name, paradigm) -> {
             if (paradigm == ProgrammingParadigm.REACTIVE) {
                 return List.of(new Reason(
                         "Persistence units using an external client do not support Hibernate Reactive"));
@@ -105,7 +105,8 @@ class MongoDbHibernateProcessor {
             BuildProducer<HibernateOrmClientDefinedBuildItem> definedClients) {
         for (String clientName : discoverClientNames(indexBuildItem.getIndex())) {
             definedClients.produce(new HibernateOrmClientDefinedBuildItem(
-                    clientName, ClassNames.MONGO_DIALECT, CLIENT_PROPERTIES,
+                    clientName, Set.of(ProgrammingParadigm.BLOCKING),
+                    ClassNames.MONGO_DIALECT, CLIENT_PROPERTIES,
                     isMongoDevServicesEnabled(clientName)));
         }
     }
@@ -184,6 +185,12 @@ class MongoDbHibernateProcessor {
                 ClassNames.MONGO_SERVICE_REGISTRY_SCOPED_STATE,
                 ClassNames.MONGO_CONFIGURATION)
                 .constructors(true).methods(true).fields(true).build());
+        // Hibernate ORM needs to reflectively instantiate ObjectId[] for ID array operations;
+        // the core extension only registers standard JDBC types (HHH-16809 workaround).
+        reflectiveClasses.produce(ReflectiveClassBuildItem.builder(
+                "org.bson.types.ObjectId",
+                "org.bson.types.ObjectId[]")
+                .build());
     }
 
     /**
