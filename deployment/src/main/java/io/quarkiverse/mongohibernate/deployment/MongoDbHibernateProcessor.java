@@ -185,6 +185,12 @@ class MongoDbHibernateProcessor {
                 ClassNames.MONGO_SERVICE_REGISTRY_SCOPED_STATE,
                 ClassNames.MONGO_CONFIGURATION)
                 .constructors(true).methods(true).fields(true).build());
+        // Hibernate ORM needs to reflectively instantiate ObjectId[] for ID array operations;
+        // the core extension only registers standard JDBC types (HHH-16809 workaround).
+        reflectiveClasses.produce(ReflectiveClassBuildItem.builder(
+                "org.bson.types.ObjectId",
+                "org.bson.types.ObjectId[]")
+                .build());
     }
 
     /**
